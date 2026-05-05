@@ -85,14 +85,14 @@
         .today-col::after {
             content: "Hôm nay";
             position: absolute;
-            top: -22px;
+            top: -26px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 700;
             color: #2563eb;
             background: white;
-            padding: 2px 8px;
+            padding: 4px 12px;
             border-radius: 20px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             white-space: nowrap;
@@ -184,15 +184,55 @@
         .modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .modal-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
+        /* 🔹 CALENDAR FONT SIZE - LỚN HƠN */
+        :root {
+            --calendar-day-font: 14px;
+            --calendar-weekday-font: 11px;
+            --calendar-col-min-width: 68px;
+            --calendar-padding: 8px 4px;
+        }
+        .calendar-day {
+            font-size: var(--calendar-day-font);
+            font-weight: 800;
+            letter-spacing: -0.3px;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .calendar-weekday {
+            font-size: var(--calendar-weekday-font);
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 4px;
+        }
+        .today-col .calendar-day {
+            color: #1e40af !important;
+            text-shadow: 0 2px 4px rgba(59, 130, 246, 0.25);
+        }
+        .today-col .calendar-weekday {
+            color: #3b82f6 !important;
+            font-weight: 700 !important;
+        }
+        
         /* Loading skeleton */
         .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
         @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         
-        /* Print styles for modal */
+        /* Print styles */
         @media print {
             .modal-overlay { position: static; background: white; }
             .modal-close, .no-print { display: none !important; }
             .modal-content { box-shadow: none; width: 100%; max-width: 100%; }
+            body { background: white; }
+        }
+        
+        /* Mobile adjustments */
+        @media (max-width: 480px) {
+            :root {
+                --calendar-day-font: 13px;
+                --calendar-weekday-font: 10px;
+                --calendar-col-min-width: 58px;
+            }
         }
     </style>
 </head>
@@ -312,7 +352,6 @@
             
             <!-- Modal Body -->
             <div class="modal-body" id="modal-body">
-                <!-- Summary table will be injected here -->
                 <div id="modal-summary-content"></div>
             </div>
             
@@ -463,7 +502,7 @@
         function openSummaryModal() {
             const modal = document.getElementById('summary-modal');
             modal.classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent scroll behind modal
+            document.body.style.overflow = 'hidden';
             renderModalSummary();
             updateModalStats();
         }
@@ -471,7 +510,7 @@
         function closeSummaryModal() {
             const modal = document.getElementById('summary-modal');
             modal.classList.remove('active');
-            document.body.style.overflow = ''; // Restore scroll
+            document.body.style.overflow = '';
         }
 
         function closeModalOnOverlay(e) {
@@ -480,7 +519,6 @@
             }
         }
 
-        // Handle ESC key to close modal
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && document.getElementById('summary-modal').classList.contains('active')) {
                 closeSummaryModal();
@@ -507,7 +545,6 @@
                 return;
             }
             
-            // Build full table for modal
             let tableHTML = `
                 <div class="overflow-x-auto rounded-2xl border border-slate-200">
                 <table class="w-full text-left">
@@ -590,13 +627,8 @@
             document.getElementById('modal-stats').textContent = `Tổng: ${students.length} học sinh • Cập nhật: ${timeStr}`;
         }
 
-        function printSummary() {
-            window.print();
-        }
-
-        function exportSummaryToExcel() {
-            exportToExcel(); // Reuse existing export function
-        }
+        function printSummary() { window.print(); }
+        function exportSummaryToExcel() { exportToExcel(); }
 
         // === RENDER FUNCTIONS ===
         function renderAll() {
@@ -623,12 +655,13 @@
                 const isWork = checkIsWorkDay(dateObj, scheduleType);
                 const isTodayFlag = isToday(dateObj);
                 
+                // 🔹 CHỮ LỚN HƠN: calendar-day 14px, calendar-weekday 11px
                 header.innerHTML += `
-                    <th class="p-2 text-center min-w-[48px] relative ${isTodayFlag ? 'today-col' : ''}">
-                        <div class="text-[10px] font-extrabold ${isWork ? (isTodayFlag ? 'text-blue-700' : 'text-slate-600') : 'text-slate-200'}">
+                    <th class="p-3 text-center relative ${isTodayFlag ? 'today-col' : ''}" style="min-width: var(--calendar-col-min-width); padding: var(--calendar-padding);">
+                        <div class="calendar-day ${isWork ? (isTodayFlag ? 'text-blue-700' : 'text-slate-600') : 'text-slate-200'}">
                             ${d}
                         </div>
-                        <div class="text-[9px] font-medium text-slate-300 mt-0.5">${vnDays[dayIndex]}</div>
+                        <div class="calendar-weekday">${vnDays[dayIndex]}</div>
                     </th>`;
             }
 
@@ -649,17 +682,17 @@
                     const isTodayFlag = isToday(dateObj);
                     const statusClass = statusMap[status] || 'empty';
                     
-                    row += `<td class="p-1.5 text-center ${!isWork ? 'bg-slate-50/30' : ''} ${isTodayFlag && isWork ? 'rounded-xl' : ''}">
+                    row += `<td class="p-2 text-center ${!isWork ? 'bg-slate-50/30' : ''} ${isTodayFlag && isWork ? 'rounded-xl' : ''}">
                         ${isWork ? `
                         <select onchange="saveAtt('${st.id}', '${y}-${String(m).padStart(2,'0')}-${d}', this.value)" 
-                            class="w-10 h-10 text-xs rounded-xl text-center font-bold transition-all cursor-pointer
+                            class="w-11 h-11 text-sm rounded-xl text-center font-bold transition-all cursor-pointer
                             ${status ? `status-${statusClass}` : 'status-empty hover:border-emerald-300'}"
                             style="background-image: none;">
                             <option value="">○</option>
                             <option value="✅" ${status==='✅'?'selected':''}>✅</option>
                             <option value="❌" ${status==='❌'?'selected':''}>❌</option>
                             <option value="⏰" ${status==='⏰'?'selected':''}>⏰</option>
-                        </select>` : '<span class="text-slate-200 text-lg">•</span>'}
+                        </select>` : '<span class="text-slate-200 text-xl">•</span>'}
                     </td>`;
                 }
                 row += '</tr>';
@@ -689,7 +722,6 @@
             `).join('');
         }
 
-        // === 🔹 HÀM TỔNG KẾT PREVIEW (trên trang chính) ===
         function renderSummary() {
             const monthVal = document.getElementById('month-filter').value;
             if (!monthVal) return;
@@ -709,7 +741,6 @@
                 return;
             }
             
-            // Show preview: top 3 students or summary cards
             const previewStudents = students.slice(0, 3);
             
             previewStudents.forEach((st, index) => {
@@ -792,7 +823,6 @@
             document.getElementById('stat-late').textContent = totalLate;
         }
 
-        // === EXPORT EXCEL NÂNG CẤP ===
         function exportToExcel() {
             const monthVal = document.getElementById('month-filter').value;
             if (!monthVal) { showToast('Vui lòng chọn tháng!', '⚠️', 'error'); return; }
