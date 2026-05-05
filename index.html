@@ -26,7 +26,15 @@
                         accent: { 50: '#fef3c7', 500: '#f59e0b', 600: '#d97706' },
                         danger: { 50: '#fef2f2', 500: '#ef4444', 600: '#dc2626' }
                     },
-                    animation: { 'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite' }
+                    animation: { 
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'fade-in': 'fadeIn 0.2s ease-out'
+                    },
+                    keyframes: {
+                        slideUp: { '0%': { transform: 'translateY(20px)', opacity: 0 }, '100%': { transform: 'translateY(0)', opacity: 1 } },
+                        fadeIn: { '0%': { opacity: 0 }, '100%': { opacity: 1 } }
+                    }
                 }
             }
         }
@@ -88,7 +96,9 @@
             border-radius: 20px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             white-space: nowrap;
+            animation: bounce 2s infinite;
         }
+        @keyframes bounce { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-3px); } }
         
         /* Custom select */
         select {
@@ -109,9 +119,81 @@
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         .summary-card { animation: slideIn 0.3s ease-out forwards; }
         
+        /* 🔹 MODAL FULL-SCREEN STYLES */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow: hidden;
+            transform: scale(0.95) translateY(20px);
+            transition: transform 0.3s ease;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1) translateY(0);
+        }
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+        .modal-close:hover {
+            background: #ef4444;
+            color: white;
+            transform: rotate(90deg);
+        }
+        .modal-body {
+            overflow-y: auto;
+            padding: 20px;
+            max-height: calc(90vh - 80px);
+        }
+        .modal-body::-webkit-scrollbar { width: 6px; }
+        .modal-body::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .modal-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
         /* Loading skeleton */
         .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
         @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        
+        /* Print styles for modal */
+        @media print {
+            .modal-overlay { position: static; background: white; }
+            .modal-close, .no-print { display: none !important; }
+            .modal-content { box-shadow: none; width: 100%; max-width: 100%; }
+        }
     </style>
 </head>
 <body class="pb-32">
@@ -186,14 +268,63 @@
                     <span>📈</span> 
                     <span id="summary-title">Tổng kết tháng</span>
                 </h3>
-                <span class="text-xs font-semibold px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full" id="summary-period">Tháng 5/2026</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full" id="summary-period">Tháng 5/2026</span>
+                    <!-- 🔹 NÚT MỞ MODAL FULL-SCREEN -->
+                    <button onclick="openSummaryModal()" class="btn-press px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5">
+                        <span>🔍</span> Xem chi tiết
+                    </button>
+                </div>
             </div>
             
-            <div id="summary-list" class="space-y-3 max-h-80 overflow-y-auto pr-2">
-                <!-- Summary items will be injected here -->
+            <div id="summary-list" class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                <!-- Summary preview items will be injected here -->
             </div>
         </div>
     </section>
+
+    <!-- 🔹 MODAL FULL-SCREEN TỔNG KẾT -->
+    <div id="summary-modal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+        <div class="modal-content">
+            <!-- Nút X đóng modal -->
+            <button class="modal-close no-print" onclick="closeSummaryModal()" title="Đóng (Esc)">✕</button>
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                            <span>📊</span>
+                            <span id="modal-title">Tổng kết chi tiết</span>
+                        </h2>
+                        <p class="text-sm text-slate-400 mt-1" id="modal-subtitle">Tháng 5/2026 • Lớp Anh Trần Thị Anh</p>
+                    </div>
+                    <div class="flex gap-2 no-print">
+                        <button onclick="printSummary()" class="btn-press px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold flex items-center gap-1.5">
+                            🖨️ In
+                        </button>
+                        <button onclick="exportSummaryToExcel()" class="btn-press px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5">
+                            📥 Xuất Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="modal-body" id="modal-body">
+                <!-- Summary table will be injected here -->
+                <div id="modal-summary-content"></div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs text-slate-400">
+                <span id="modal-stats">Tổng: 0 học sinh • Cập nhật: --</span>
+                <button onclick="closeSummaryModal()" class="btn-press px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-semibold no-print">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- QUẢN LÝ HỌC SINH -->
     <div class="px-4 py-6 space-y-4">
@@ -256,7 +387,7 @@
 
         // === CORE FUNCTIONS ===
         function checkIsWorkDay(date, type) {
-            const d = date.getDay(); // 0 = Chủ Nhật
+            const d = date.getDay();
             if (type === '2-4-6') return [1, 3, 5].includes(d);
             if (type === '3-5-7') return [2, 4, 6].includes(d);
             return true; // 'all': bao gồm cả Chủ Nhật ✅
@@ -287,6 +418,9 @@
                     showToast('Đã cập nhật điểm danh!');
                     updateQuickStats();
                     renderSummary();
+                    if (document.getElementById('summary-modal').classList.contains('active')) {
+                        renderModalSummary();
+                    }
                 })
                 .catch(() => {
                     statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-[10px] font-semibold text-red-600">● Lỗi kết nối</span>`;
@@ -310,7 +444,6 @@
         function deleteStudent(id) {
             if (confirm('⚠️ Xóa học sinh này sẽ mất toàn bộ lịch sử điểm danh. Bạn chắc chắn?')) {
                 const newStudents = students.filter(s => s.id !== id);
-                // Xóa cả attendance liên quan
                 Object.keys(attendance).forEach(key => {
                     if (key.startsWith(`${id}_`)) delete attendance[key];
                 });
@@ -324,6 +457,145 @@
             const val = document.getElementById('schedule-select').value;
             db.ref('scheduleType').set(val);
             showToast('Đã cập nhật lịch học! 📅');
+        }
+
+        // === 🔹 MODAL FUNCTIONS ===
+        function openSummaryModal() {
+            const modal = document.getElementById('summary-modal');
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scroll behind modal
+            renderModalSummary();
+            updateModalStats();
+        }
+
+        function closeSummaryModal() {
+            const modal = document.getElementById('summary-modal');
+            modal.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scroll
+        }
+
+        function closeModalOnOverlay(e) {
+            if (e.target.id === 'summary-modal') {
+                closeSummaryModal();
+            }
+        }
+
+        // Handle ESC key to close modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('summary-modal').classList.contains('active')) {
+                closeSummaryModal();
+            }
+            if (e.ctrlKey && e.key === 'e') { e.preventDefault(); exportToExcel(); }
+            if (e.key === 'Enter' && document.activeElement.id === 'new-student-name') addStudent();
+        });
+
+        function renderModalSummary() {
+            const monthVal = document.getElementById('month-filter').value;
+            if (!monthVal) return;
+            
+            const [y, m] = monthVal.split('-').map(Number);
+            const monthNames = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", 
+                               "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
+            
+            document.getElementById('modal-title').textContent = `📊 ${monthNames[m-1]}: Tổng kết chi tiết`;
+            document.getElementById('modal-subtitle').textContent = `${m}/${y} • Lớp Anh Trần Thị Anh`;
+            
+            const container = document.getElementById('modal-summary-content');
+            
+            if (students.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 text-slate-400"><span class="text-4xl mb-3 block">📭</span>Chưa có dữ liệu học sinh</div>`;
+                return;
+            }
+            
+            // Build full table for modal
+            let tableHTML = `
+                <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                <table class="w-full text-left">
+                    <thead class="bg-gradient-to-r from-slate-100 to-slate-50">
+                        <tr>
+                            <th class="p-4 font-extrabold text-slate-600 text-sm sticky left-0 bg-slate-100 z-10 min-w-[180px]">Học sinh</th>
+                            <th class="p-3 font-bold text-emerald-600 text-center">✅</th>
+                            <th class="p-3 font-bold text-amber-500 text-center">⏰</th>
+                            <th class="p-3 font-bold text-red-500 text-center">❌</th>
+                            <th class="p-3 font-bold text-slate-600 text-center">Tỷ lệ</th>
+                            <th class="p-3 font-bold text-slate-600">📅 Ngày đi học</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+            `;
+            
+            students.forEach((st) => {
+                const attendedDates = [];
+                let presentCount = 0, absentCount = 0, lateCount = 0;
+                
+                const daysInMonth = new Date(y, m, 0).getDate();
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dateObj = new Date(y, m-1, d);
+                    if (!checkIsWorkDay(dateObj, scheduleType)) continue;
+                    
+                    const key = `${st.id}_${y}-${String(m).padStart(2,'0')}-${d}`;
+                    const status = attendance[key];
+                    
+                    if (status === '✅') { presentCount++; attendedDates.push(d); }
+                    else if (status === '❌') absentCount++;
+                    else if (status === '⏰') lateCount++;
+                }
+                
+                const totalSessions = presentCount + absentCount + lateCount;
+                const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
+                const rateColor = attendanceRate >= 90 ? 'text-emerald-600 bg-emerald-50' : 
+                                 attendanceRate >= 70 ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50';
+                
+                tableHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-4 sticky left-0 bg-white z-10 border-r border-slate-100">
+                            <div class="flex items-center gap-3">
+                                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-sm font-extrabold text-emerald-700">
+                                    ${st.name.charAt(0).toUpperCase()}
+                                </span>
+                                <span class="font-semibold text-slate-700">${st.name}</span>
+                            </div>
+                        </td>
+                        <td class="p-3 text-center">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 font-bold">${presentCount}</span>
+                        </td>
+                        <td class="p-3 text-center">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-amber-50 text-amber-600 font-bold">${lateCount}</span>
+                        </td>
+                        <td class="p-3 text-center">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-red-50 text-red-600 font-bold">${absentCount}</span>
+                        </td>
+                        <td class="p-3 text-center">
+                            <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold ${rateColor}">${attendanceRate}%</span>
+                        </td>
+                        <td class="p-3">
+                            <div class="flex flex-wrap gap-1.5">
+                                ${attendedDates.length > 0 
+                                    ? attendedDates.map(day => `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg">${day}</span>`).join('')
+                                    : '<span class="text-[10px] text-slate-300 italic">Chưa có dữ liệu</span>'
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += `</tbody></table></div>`;
+            container.innerHTML = tableHTML;
+        }
+
+        function updateModalStats() {
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('modal-stats').textContent = `Tổng: ${students.length} học sinh • Cập nhật: ${timeStr}`;
+        }
+
+        function printSummary() {
+            window.print();
+        }
+
+        function exportSummaryToExcel() {
+            exportToExcel(); // Reuse existing export function
         }
 
         // === RENDER FUNCTIONS ===
@@ -343,7 +615,6 @@
             const header = document.getElementById('table-header');
             const body = document.getElementById('attendance-body');
 
-            // Render header
             header.innerHTML = `<th class="p-4 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider sticky-col bg-gradient-to-r from-slate-50 to-slate-100 min-w-[150px] border-r">👤 Học sinh</th>`;
             
             for (let d = 1; d <= daysInMonth; d++) {
@@ -361,7 +632,6 @@
                     </th>`;
             }
 
-            // Render body
             body.innerHTML = '';
             students.forEach(st => {
                 let row = `<tr class="hover:bg-slate-50/60 transition-colors"><td class="p-4 text-sm font-bold text-slate-700 sticky-col bg-white border-r flex items-center gap-2">
@@ -419,7 +689,7 @@
             `).join('');
         }
 
-        // === 🔹 HÀM TỔNG KẾT MỚI ===
+        // === 🔹 HÀM TỔNG KẾT PREVIEW (trên trang chính) ===
         function renderSummary() {
             const monthVal = document.getElementById('month-filter').value;
             if (!monthVal) return;
@@ -439,7 +709,10 @@
                 return;
             }
             
-            students.forEach((st, index) => {
+            // Show preview: top 3 students or summary cards
+            const previewStudents = students.slice(0, 3);
+            
+            previewStudents.forEach((st, index) => {
                 const attendedDates = [];
                 let presentCount = 0, absentCount = 0, lateCount = 0;
                 
@@ -459,54 +732,38 @@
                 const totalSessions = attendedDates.length + absentCount + lateCount;
                 const attendanceRate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
                 
-                // Màu sắc theo tỷ lệ chuyên cần
                 const rateColor = attendanceRate >= 90 ? 'text-emerald-600 bg-emerald-50' : 
                                  attendanceRate >= 70 ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50';
                 
                 container.innerHTML += `
                     <div class="glass-card p-4 rounded-2xl summary-card" style="animation-delay: ${index * 50}ms">
-                        <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center justify-between">
                             <div class="flex items-center gap-3">
-                                <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-sm font-extrabold text-emerald-700">
+                                <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-sm font-extrabold text-emerald-700">
                                     ${st.name.charAt(0).toUpperCase()}
                                 </span>
                                 <div>
-                                    <div class="font-bold text-slate-800">${st.name}</div>
-                                    <div class="text-xs text-slate-400">${attendedDates.length} buổi đã điểm danh</div>
+                                    <div class="font-bold text-slate-800 text-sm">${st.name}</div>
+                                    <div class="text-[10px] text-slate-400">${attendedDates.length} buổi</div>
                                 </div>
                             </div>
-                            <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold ${rateColor}">
-                                ${attendanceRate}% chuyên cần
+                            <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold ${rateColor}">
+                                ${attendanceRate}%
                             </span>
-                        </div>
-                        
-                        <div class="grid grid-cols-3 gap-2 mb-3 text-center">
-                            <div class="p-2 rounded-xl bg-emerald-50">
-                                <div class="text-lg font-extrabold text-emerald-600">${presentCount}</div>
-                                <div class="text-[10px] text-emerald-700/70">Có mặt</div>
-                            </div>
-                            <div class="p-2 rounded-xl bg-amber-50">
-                                <div class="text-lg font-extrabold text-amber-600">${lateCount}</div>
-                                <div class="text-[10px] text-amber-700/70">Trễ</div>
-                            </div>
-                            <div class="p-2 rounded-xl bg-red-50">
-                                <div class="text-lg font-extrabold text-red-600">${absentCount}</div>
-                                <div class="text-[10px] text-red-700/70">Vắng</div>
-                            </div>
-                        </div>
-                        
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] font-semibold text-slate-400 uppercase">📅 Ngày đi học:</span>
-                            <div class="flex flex-wrap gap-1.5">
-                                ${attendedDates.length > 0 
-                                    ? attendedDates.map(day => `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg">${day}</span>`).join('')
-                                    : '<span class="text-[10px] text-slate-300 italic">Chưa có dữ liệu</span>'
-                                }
-                            </div>
                         </div>
                     </div>
                 `;
             });
+            
+            if (students.length > 3) {
+                container.innerHTML += `
+                    <div class="text-center py-2">
+                        <button onclick="openSummaryModal()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1 mx-auto">
+                            Xem tất cả ${students.length} học sinh →
+                        </button>
+                    </div>
+                `;
+            }
         }
 
         function updateQuickStats() {
@@ -544,7 +801,6 @@
             const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
             const daysInMonth = new Date(y, m, 0).getDate();
             
-            // Header row
             let headers = ["STT", "Học sinh"];
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateObj = new Date(y, m-1, d);
@@ -578,7 +834,6 @@
             });
 
             const ws = XLSX.utils.aoa_to_sheet(data);
-            // Set column widths
             ws['!cols'] = [{wch: 5}, {wch: 25}, ...Array(headers.length - 6).fill({wch: 8}), {wch: 10}, {wch: 8}, {wch: 8}, {wch: 12}, {wch: 30}];
             
             const wb = XLSX.utils.book_new();
@@ -589,20 +844,11 @@
 
         // === INIT ===
         document.addEventListener('DOMContentLoaded', () => {
-            // Set default month to current
             const now = new Date();
             const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             document.getElementById('month-filter').value = defaultMonth;
             document.getElementById('schedule-select').value = scheduleType;
-            
-            // Auto-render when page loads
             renderAll();
-        });
-
-        // Handle keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'e') { e.preventDefault(); exportToExcel(); }
-            if (e.key === 'Enter' && document.activeElement.id === 'new-student-name') addStudent();
         });
     </script>
 </body>
