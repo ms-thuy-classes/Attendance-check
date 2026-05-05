@@ -3,14 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Điểm danh Đồng bộ - Firebase</title>
+    <title>Lớp Anh Trần Thị Anh - Cloud</title>
     
-    <!-- Tailwind CSS cho giao diện đẹp -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Thư viện xuất Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <!-- Firebase SDK (Dùng bản Compat để dễ lồng vào HTML) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
@@ -22,7 +18,10 @@
         .pastel-green { background-color: #dcfce7; color: #166534; }
         .pastel-red { background-color: #fee2e2; color: #991b1b; }
         .pastel-yellow { background-color: #fef9c3; color: #854d0e; }
+        .today-highlight { background-color: #fef9c3 !important; border: 2px solid #3b82f6 !important; }
         select { appearance: none; -webkit-appearance: none; }
+        .custom-scroll::-webkit-scrollbar { height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body class="pb-24">
@@ -34,7 +33,7 @@
                 <h1 class="text-xl font-extrabold text-slate-800">Lớp Anh Trần Thị Anh 🍎</h1>
                 <div id="sync-status" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Đang kết nối...</div>
             </div>
-            <button onclick="exportToExcel()" class="bg-emerald-500 text-white p-3 rounded-2xl text-sm font-bold shadow-lg shadow-emerald-200">Excel</button>
+            <button onclick="exportToExcel()" class="bg-emerald-500 text-white p-3 rounded-2xl text-sm font-bold shadow-lg shadow-emerald-200">Xuất Excel</button>
         </div>
     </div>
 
@@ -43,57 +42,78 @@
         <select id="schedule-select" onchange="updateSettings()" class="flex-1 glass p-3 rounded-2xl text-sm font-semibold outline-none border-none shadow-sm">
             <option value="2-4-6">Lịch Thứ 2-4-6</option>
             <option value="3-5-7">Lịch Thứ 3-5-7</option>
-            <option value="all">Cả tuần</option>
+            <option value="all">Cả tuần (T2-CN)</option>
         </select>
         <input type="month" id="month-filter" onchange="renderAll()" class="flex-1 glass p-3 rounded-2xl text-sm font-semibold outline-none border-none shadow-sm">
     </div>
 
     <!-- BẢNG ĐIỂM DANH -->
-    <main class="px-4">
-        <div class="glass rounded-3xl overflow-hidden shadow-xl overflow-x-auto">
-            <table class="w-full text-left border-collapse bg-white">
-                <thead>
-                    <tr id="table-header" class="bg-slate-50/80">
-                        <th class="p-4 text-xs font-bold text-slate-400 sticky-col bg-slate-50 min-w-[140px]">HỌC SINH</th>
-                    </tr>
-                </thead>
-                <tbody id="attendance-body" class="divide-y divide-slate-100"></tbody>
-            </table>
+    <main class="px-4 mb-8">
+        <div class="glass rounded-3xl overflow-hidden shadow-xl">
+            <div class="overflow-x-auto custom-scroll">
+                <table class="w-full text-left border-collapse bg-white">
+                    <thead>
+                        <tr id="table-header" class="bg-slate-50/80">
+                            <th class="p-4 text-xs font-bold text-slate-400 sticky-col bg-slate-50 min-w-[140px]">HỌC SINH</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendance-body" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
         </div>
     </main>
 
+    <!-- BẢNG TỔNG KẾT -->
+    <section class="px-4 mb-8">
+        <div class="glass p-6 rounded-[2rem] shadow-lg border border-blue-100 bg-blue-50/30">
+            <h2 id="summary-title" class="text-lg font-bold text-blue-800 mb-4 text-center uppercase tracking-tight">Tổng kết tháng</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-slate-400 text-[10px] uppercase font-bold border-b">
+                            <th class="py-2 text-left">Tên HS</th>
+                            <th class="py-2 text-center">Số buổi</th>
+                            <th class="py-2 text-right">Chi tiết các ngày đi học</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-table-body" class="divide-y divide-blue-50">
+                        <!-- Dữ liệu tổng kết đổ vào đây -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
     <!-- QUẢN LÝ HỌC SINH -->
     <div class="p-6 space-y-4">
-        <h3 class="font-bold text-slate-800">Danh sách học sinh</h3>
+        <h3 class="font-bold text-slate-800 px-2">Danh sách lớp</h3>
         <div id="student-list" class="grid grid-cols-1 gap-2"></div>
         <div class="flex gap-2">
-            <input type="text" id="new-student-name" placeholder="Nhập tên học sinh mới..." class="flex-1 p-4 rounded-2xl glass outline-none text-sm">
+            <input type="text" id="new-student-name" placeholder="Tên học sinh mới..." class="flex-1 p-4 rounded-2xl glass outline-none text-sm">
             <button onclick="addStudent()" class="px-6 py-4 bg-slate-900 text-white rounded-2xl font-bold">Thêm</button>
         </div>
     </div>
 
     <script>
-        // --- 1. CONFIG FIREBASE CỦA BẠN ---
+        // --- CONFIG FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyDRZFr7TnMJqDbEKtyR7T3zlspZYz8iNNw",
             authDomain: "appdiemdanh-c84a1.firebaseapp.com",
             projectId: "appdiemdanh-c84a1",
-            databaseURL: "https://appdiemdanh-c84a1-default-rtdb.asia-southeast1.firebasedatabase.app/", // Lưu ý: Cần link database của bạn
+            databaseURL: "https://appdiemdanh-c84a1-default-rtdb.asia-southeast1.firebasedatabase.app/",
             storageBucket: "appdiemdanh-c84a1.firebasestorage.app",
             messagingSenderId: "729519978634",
             appId: "1:729519978634:web:2bd9fd826e9f67a7671573"
         };
 
-        // Khởi tạo Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
         let students = [];
         let attendance = {};
         let scheduleType = '2-4-6';
-        const vnDays = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
 
-        // --- 2. LẮNG NGHE DỮ LIỆU TỪ CLOUD ---
+        // --- ĐỒNG BỘ DỮ LIỆU ---
         db.ref('/').on('value', (snapshot) => {
             const data = snapshot.val() || {};
             students = data.students || [];
@@ -106,7 +126,6 @@
             renderAll();
         });
 
-        // --- 3. CÁC HÀM XỬ LÝ DỮ LIỆU ---
         function saveAtt(sid, date, val) {
             document.getElementById('sync-status').innerText = "⚡ Đang lưu...";
             db.ref('attendance/' + `${sid}_${date}`).set(val);
@@ -121,7 +140,7 @@
         }
 
         function deleteStudent(id) {
-            if (confirm('Xác nhận xóa học sinh này và toàn bộ dữ liệu liên quan?')) {
+            if (confirm('Xóa học sinh này?')) {
                 const newStudents = students.filter(s => s.id !== id);
                 db.ref('students').set(newStudents);
             }
@@ -132,16 +151,17 @@
             db.ref('scheduleType').set(val);
         }
 
-        // --- 4. HÀM HIỂN THỊ (RENDER) ---
+        // --- LOGIC HIỂN THỊ ---
         function checkIsWorkDay(date, type) {
             const d = date.getDay();
             if (type === '2-4-6') return [1, 3, 5].includes(d);
             if (type === '3-5-7') return [2, 4, 6].includes(d);
-            return d !== 0; // all week
+            return true; // "all" bao gồm cả Chủ Nhật (0)
         }
 
         function renderAll() {
             renderAttendanceTable();
+            renderSummary();
             renderStudentList();
         }
 
@@ -151,12 +171,18 @@
             const daysInMonth = new Date(y, m, 0).getDate();
             const header = document.getElementById('table-header');
             const body = document.getElementById('attendance-body');
+            
+            const today = new Date();
+            const todayD = today.getDate();
+            const todayM = today.getMonth() + 1;
+            const todayY = today.getFullYear();
 
             // Header
             header.innerHTML = `<th class="p-4 text-[10px] font-bold text-slate-400 sticky-col bg-slate-50 min-w-[140px]">HỌC SINH</th>`;
             for (let d = 1; d <= daysInMonth; d++) {
                 const isWork = checkIsWorkDay(new Date(y, m - 1, d), scheduleType);
-                header.innerHTML += `<th class="p-2 text-center min-w-[45px]">
+                const isToday = (d == todayD && m == todayM && y == todayY);
+                header.innerHTML += `<th class="p-2 text-center min-w-[45px] ${isToday ? 'today-highlight shadow-inner' : ''}">
                     <div class="text-[10px] font-bold ${isWork ? 'text-slate-600' : 'text-slate-200'}">${d}</div>
                 </th>`;
             }
@@ -169,12 +195,13 @@
                     const key = `${st.id}_${y}-${m}-${d}`;
                     const status = attendance[key] || '';
                     const isWork = checkIsWorkDay(new Date(y, m - 1, d), scheduleType);
+                    const isToday = (d == todayD && m == todayM && y == todayY);
                     
-                    row += `<td class="p-1 text-center ${isWork ? '' : 'bg-slate-50/30'}">
+                    row += `<td class="p-1 text-center ${isToday ? 'today-highlight' : ''} ${isWork ? '' : 'bg-slate-50/30'}">
                         ${isWork ? `
                         <select onchange="saveAtt('${st.id}', '${y}-${m}-${d}', this.value)" 
                             class="w-9 h-9 text-xs rounded-xl text-center font-bold transition-all
-                            ${status === '✅' ? 'pastel-green' : status === '❌' ? 'pastel-red' : status === '⏰' ? 'pastel-yellow' : 'bg-slate-50 text-slate-300'}">
+                            ${status === '✅' ? 'pastel-green' : status === '❌' ? 'pastel-red' : status === '⏰' ? 'pastel-yellow' : 'bg-slate-100 text-slate-300'}">
                             <option value="">-</option>
                             <option value="✅" ${status === '✅' ? 'selected' : ''}>✅</option>
                             <option value="❌" ${status === '❌' ? 'selected' : ''}>❌</option>
@@ -183,6 +210,33 @@
                     </td>`;
                 }
                 body.innerHTML += row + `</tr>`;
+            });
+        }
+
+        function renderSummary() {
+            const [y, m] = document.getElementById('month-filter').value.split('-');
+            const daysInMonth = new Date(y, m, 0).getDate();
+            const summaryBody = document.getElementById('summary-table-body');
+            document.getElementById('summary-title').innerText = `Tổng kết tháng ${m} / ${y}`;
+            
+            summaryBody.innerHTML = '';
+            students.forEach(st => {
+                let presentDays = [];
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const status = attendance[`${st.id}_${y}-${m}-${d}`];
+                    // Tính cả "Có mặt" và "Đi trễ" là ngày có đi học
+                    if (status === '✅' || status === '⏰') {
+                        presentDays.push(d);
+                    }
+                }
+                
+                summaryBody.innerHTML += `
+                    <tr>
+                        <td class="py-3 font-bold text-slate-700">${st.name}</td>
+                        <td class="py-3 text-center font-extrabold text-blue-600">${presentDays.length}</td>
+                        <td class="py-3 text-right text-xs text-slate-500 font-medium">${presentDays.length > 0 ? presentDays.join(', ') : '---'}</td>
+                    </tr>
+                `;
             });
         }
 
@@ -200,30 +254,28 @@
             const daysInMonth = new Date(y, m, 0).getDate();
             let headers = ["Học sinh"];
             for (let d = 1; d <= daysInMonth; d++) headers.push(d.toString());
-            headers.push("Có mặt", "Vắng", "Trễ");
+            headers.push("Tổng có mặt", "Danh sách ngày đi");
 
             let data = [headers];
             students.forEach(st => {
                 let row = [st.name];
-                let cP = 0, cA = 0, cL = 0;
+                let presentDays = [];
                 for (let d = 1; d <= daysInMonth; d++) {
                     const status = attendance[`${st.id}_${y}-${m}-${d}`] || "";
                     row.push(status);
-                    if(status === "✅") cP++;
-                    if(status === "❌") cA++;
-                    if(status === "⏰") cL++;
+                    if(status === "✅" || status === "⏰") presentDays.push(d);
                 }
-                row.push(cP, cA, cL);
+                row.push(presentDays.length, presentDays.join(', '));
                 data.push(row);
             });
 
             const ws = XLSX.utils.aoa_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "DiemDanh");
-            XLSX.writeFile(wb, `Diem_Danh_Thang_${m}.xlsx`);
+            XLSX.writeFile(wb, `Tong_Ket_Thang_${m}_Lop_TranThiAnh.xlsx`);
         }
 
-        // Khởi tạo ngày tháng
+        // Khởi tạo
         const now = new Date();
         document.getElementById('month-filter').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         document.getElementById('schedule-select').value = scheduleType;
