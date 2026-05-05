@@ -3,314 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Attendance Pro - Fix Excel</title>
+    <title>Điểm danh Đồng bộ - Firebase</title>
+    
+    <!-- Tailwind CSS cho giao diện đẹp -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Thư viện xuất Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK (Dùng bản Compat để dễ lồng vào HTML) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; color: #1e293b; touch-action: manipulation; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; touch-action: manipulation; }
         .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.5); }
+        .sticky-col { position: sticky; left: 0; z-index: 20; background: white; border-right: 2px solid #f1f5f9; }
         .pastel-green { background-color: #dcfce7; color: #166534; }
         .pastel-red { background-color: #fee2e2; color: #991b1b; }
         .pastel-yellow { background-color: #fef9c3; color: #854d0e; }
-        .custom-scroll::-webkit-scrollbar { height: 6px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .sticky-col { position: sticky; left: 0; z-index: 20; background: white; border-right: 2px solid #f1f5f9; }
-        @media print { .no-print { display: none; } }
+        select { appearance: none; -webkit-appearance: none; }
     </style>
 </head>
 <body class="pb-24">
 
-    <div class="p-6 bg-white border-b border-slate-100">
-        <div class="flex justify-between items-start mb-6">
+    <!-- HEADER -->
+    <div class="p-6 bg-white border-b border-slate-100 sticky top-0 z-30">
+        <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Điểm danh Pro ✏️</h1>
-                <p id="current-date-display" class="text-slate-500 font-medium text-sm mt-1"></p>
+                <h1 class="text-xl font-extrabold text-slate-800">Lớp Anh Trần Thị Anh 🍎</h1>
+                <div id="sync-status" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Đang kết nối...</div>
             </div>
-            <div id="status-badge" class="p-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-400">Đang tải...</div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-3">
-            <div class="glass p-3 rounded-2xl bg-blue-50/30 border-blue-100">
-                <p class="text-[10px] uppercase font-bold text-blue-400">Sĩ số</p>
-                <p id="stat-total-students" class="text-xl font-bold">0</p>
-            </div>
-            <div class="glass p-3 rounded-2xl bg-purple-50/30 border-purple-100">
-                <p class="text-[10px] uppercase font-bold text-purple-400">Buổi học</p>
-                <p id="stat-total-sessions" class="text-xl font-bold">0</p>
-            </div>
-            <div class="glass p-3 rounded-2xl bg-orange-50/30 border-orange-100 text-center">
-                <p class="text-[10px] uppercase font-bold text-orange-400">Tổng kết</p>
-                <button onclick="showSummary()" class="text-[11px] font-bold text-orange-600 underline">Xem ngay</button>
-            </div>
+            <button onclick="exportToExcel()" class="bg-emerald-500 text-white p-3 rounded-2xl text-sm font-bold shadow-lg shadow-emerald-200">Excel</button>
         </div>
     </div>
 
-    <main class="p-4 space-y-6">
-        <div class="flex gap-2 no-print">
-            <select id="schedule-select" onchange="updateSettings()" class="flex-1 glass p-3 rounded-2xl text-sm font-semibold outline-none border-none shadow-sm">
-                <option value="2-4-6">Thứ 2-4-6</option>
-                <option value="3-5-7">Thứ 3-5-7</option>
-                <option value="all_week">Cả tuần (T2-T7)</option>
-                <option value="inc_sunday">Cả tuần + Chủ Nhật</option>
-            </select>
-            <input type="month" id="month-filter" onchange="renderAll()" class="flex-1 glass p-3 rounded-2xl text-sm font-semibold outline-none border-none shadow-sm">
-        </div>
+    <!-- BỘ LỌC -->
+    <div class="p-4 flex gap-2">
+        <select id="schedule-select" onchange="updateSettings()" class="flex-1 glass p-3 rounded-2xl text-sm font-semibold outline-none border-none shadow-sm">
+            <option value="2-4-6">Lịch Thứ 2-4-6</option>
+            <option value="3-5-7">Lịch Thứ 3-5-7</option>
+            <option value="all">Cả tuần</option>
+        </select>
+        <input type="month" id="month-filter" onchange="renderAll()" class="flex-1 glass p-3 rounded-2xl text-sm font-semibold outline-none border-none shadow-sm">
+    </div>
 
-        <div class="glass rounded-3xl overflow-hidden shadow-xl">
-            <div class="overflow-x-auto custom-scroll">
-                <table id="main-attendance-table" class="w-full text-left border-collapse bg-white">
-                    <thead>
-                        <tr id="table-header" class="bg-slate-50/80">
-                            <th class="p-4 text-xs font-bold text-slate-400 sticky-col uppercase min-w-[140px] bg-slate-50">Học sinh</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendance-body" class="divide-y divide-slate-100"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="space-y-4 no-print">
-            <h3 class="font-bold text-slate-800 px-2">Danh sách lớp</h3>
-            <div id="student-list" class="grid grid-cols-1 gap-2 px-2"></div>
-            <div class="flex gap-2 px-2">
-                <input type="text" id="new-student-name" placeholder="Tên học sinh mới..." class="flex-1 p-4 rounded-2xl glass outline-none text-sm">
-                <button onclick="addStudent()" class="px-6 py-4 bg-slate-900 text-white rounded-2xl font-bold">Thêm</button>
-            </div>
+    <!-- BẢNG ĐIỂM DANH -->
+    <main class="px-4">
+        <div class="glass rounded-3xl overflow-hidden shadow-xl overflow-x-auto">
+            <table class="w-full text-left border-collapse bg-white">
+                <thead>
+                    <tr id="table-header" class="bg-slate-50/80">
+                        <th class="p-4 text-xs font-bold text-slate-400 sticky-col bg-slate-50 min-w-[140px]">HỌC SINH</th>
+                    </tr>
+                </thead>
+                <tbody id="attendance-body" class="divide-y divide-slate-100"></tbody>
+            </table>
         </div>
     </main>
 
-    <div id="summary-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] p-4 flex items-center justify-center">
-        <div class="glass w-full max-w-md max-h-[85vh] rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
-            <div class="p-6 border-b flex justify-between items-center bg-white">
-                <h3 class="font-extrabold text-slate-800 text-lg">Bảng tổng kết tháng</h3>
-                <button onclick="closeSummary()" class="p-2 text-slate-400">✕</button>
-            </div>
-            <div class="overflow-y-auto p-4 custom-scroll">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-slate-400 text-[10px] uppercase font-bold border-b text-center">
-                            <th class="text-left py-3">Tên HS</th>
-                            <th class="py-3">Buổi</th>
-                            <th class="py-3 text-green-500">Có mặt</th>
-                            <th class="py-3 text-red-400">Nghỉ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="summary-table-body" class="divide-y divide-slate-50"></tbody>
-                </table>
-            </div>
+    <!-- QUẢN LÝ HỌC SINH -->
+    <div class="p-6 space-y-4">
+        <h3 class="font-bold text-slate-800">Danh sách học sinh</h3>
+        <div id="student-list" class="grid grid-cols-1 gap-2"></div>
+        <div class="flex gap-2">
+            <input type="text" id="new-student-name" placeholder="Nhập tên học sinh mới..." class="flex-1 p-4 rounded-2xl glass outline-none text-sm">
+            <button onclick="addStudent()" class="px-6 py-4 bg-slate-900 text-white rounded-2xl font-bold">Thêm</button>
         </div>
     </div>
 
-    <nav class="fixed bottom-0 left-0 right-0 p-4 glass border-t border-white/50 flex justify-around items-center z-50 rounded-t-[2.5rem] no-print">
-        <button onclick="showSummary()" class="flex flex-col items-center gap-1">
-            <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center shadow-sm">🏆</div>
-            <span class="text-[10px] font-bold text-slate-500">Tổng kết</span>
-        </button>
-        <button onclick="exportToExcel()" class="flex flex-col items-center gap-1">
-            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">📊</div>
-            <span class="text-[10px] font-bold text-slate-500">Excel</span>
-        </button>
-        <button onclick="clearData()" class="flex flex-col items-center gap-1">
-            <div class="w-12 h-12 rounded-2xl bg-red-50 text-red-400 flex items-center justify-center shadow-sm">⚙️</div>
-            <span class="text-[10px] font-bold text-slate-500">Reset</span>
-        </button>
-    </nav>
-
     <script>
-        let students = JSON.parse(localStorage.getItem('students')) || [];
-        let attendance = JSON.parse(localStorage.getItem('attendance')) || {};
-        let scheduleType = localStorage.getItem('scheduleType') || '2-4-6';
+        // --- 1. CONFIG FIREBASE CỦA BẠN ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDRZFr7TnMJqDbEKtyR7T3zlspZYz8iNNw",
+            authDomain: "appdiemdanh-c84a1.firebaseapp.com",
+            projectId: "appdiemdanh-c84a1",
+            databaseURL: "https://appdiemdanh-c84a1-default-rtdb.firebaseio.com", // Lưu ý: Cần link database của bạn
+            storageBucket: "appdiemdanh-c84a1.firebasestorage.app",
+            messagingSenderId: "729519978634",
+            appId: "1:729519978634:web:2bd9fd826e9f67a7671573"
+        };
+
+        // Khởi tạo Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let students = [];
+        let attendance = {};
+        let scheduleType = '2-4-6';
         const vnDays = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
 
-        function init() {
-            const now = new Date();
-            document.getElementById('month-filter').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            document.getElementById('schedule-select').value = scheduleType;
-            renderAll();
-        }
-
-        function checkIsWorkDay(date, type) {
-            const d = date.getDay();
-            if (type === '2-4-6') return [1, 3, 5].includes(d);
-            if (type === '3-5-7') return [2, 4, 6].includes(d);
-            if (type === 'all_week') return d !== 0;
-            if (type === 'inc_sunday') return true;
-            return false;
-        }
-
-        function renderAll() {
-            updateDateDisplay();
-            renderAttendanceTable();
-            renderStudentManagement();
-            updateStats();
-        }
-
-        function updateDateDisplay() {
-            const now = new Date();
-            document.getElementById('current-date-display').innerText = `${vnDays[now.getDay()]}, ${now.toLocaleDateString('vi-VN')}`;
-            const isWork = checkIsWorkDay(now, scheduleType);
-            const badge = document.getElementById('status-badge');
-            badge.innerText = isWork ? "Hôm nay có lớp" : "Hôm nay nghỉ";
-            badge.className = isWork ? "p-2 rounded-xl text-xs font-bold bg-green-50 text-green-600" : "p-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-400";
-        }
-
-        function renderAttendanceTable() {
-            const [y, m] = document.getElementById('month-filter').value.split('-');
-            const daysInMonth = new Date(y, m, 0).getDate();
-            const header = document.getElementById('table-header');
-            const body = document.getElementById('attendance-body');
-
-            header.innerHTML = `<th class="p-4 text-xs font-bold text-slate-400 sticky-col uppercase min-w-[140px] bg-slate-50">Học sinh</th>`;
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateObj = new Date(y, m - 1, d);
-                const isWork = checkIsWorkDay(dateObj, scheduleType);
-                const isToday = d === new Date().getDate() && m == (new Date().getMonth()+1);
-                header.innerHTML += `<th class="p-2 text-center min-w-[45px] ${isToday ? 'bg-blue-50 ring-2 ring-blue-400 ring-inset' : ''}">
-                    <div class="text-[10px] font-bold ${isWork ? 'text-slate-600' : 'text-slate-200'}">${d}</div>
-                    <div class="text-[8px] font-medium text-slate-400">${vnDays[dateObj.getDay()].split(' ')[1]}</div>
-                </th>`;
-            }
-
-            body.innerHTML = '';
-            students.forEach(st => {
-                let row = `<tr><td class="p-4 text-sm font-bold text-slate-700 sticky-col shadow-sm bg-white">${st.name}</td>`;
-                for (let d = 1; d <= daysInMonth; d++) {
-                    const key = `${st.id}_${y}-${m}-${d}`;
-                    const status = attendance[key] || '';
-                    const isWork = checkIsWorkDay(new Date(y, m - 1, d), scheduleType);
-                    row += `<td class="p-1 text-center ${isWork ? '' : 'bg-slate-50/30'}">
-                        ${isWork ? `<select onchange="saveAtt('${st.id}', '${y}-${m}-${d}', this.value)" 
-                            class="w-9 h-9 text-xs rounded-xl outline-none appearance-none text-center transition-all cursor-pointer
-                            ${status === '✅' ? 'pastel-green' : status === '❌' ? 'pastel-red' : status === '⏰' ? 'pastel-yellow' : 'bg-slate-50 text-slate-300'}">
-                            <option value="">-</option>
-                            <option value="✅" ${status === '✅' ? 'selected' : ''}>✅</option>
-                            <option value="❌" ${status === '❌' ? 'selected' : ''}>❌</option>
-                            <option value="⏰" ${status === '⏰' ? 'selected' : ''}>⏰</option>
-                        </select>` : ''}</td>`;
-                }
-                body.innerHTML += row + `</tr>`;
-            });
-        }
-
-        function saveAtt(sid, date, val) {
-            attendance[`${sid}_${date}`] = val;
-            localStorage.setItem('attendance', JSON.stringify(attendance));
-            renderAll();
-        }
-
-        // HÀM XUẤT EXCEL CHUẨN (FIX LỖI)
-        function exportToExcel() {
-            const [y, m] = document.getElementById('month-filter').value.split('-');
-            const daysInMonth = new Date(y, m, 0).getDate();
+        // --- 2. LẮNG NGHE DỮ LIỆU TỪ CLOUD ---
+        db.ref('/').on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            students = data.students || [];
+            attendance = data.attendance || {};
+            scheduleType = data.scheduleType || '2-4-6';
             
-            // 1. Tạo Header: Tên HS | 1 | 2 | 3 ... | Tổng
-            let headers = ["Học sinh"];
-            for (let d = 1; d <= daysInMonth; d++) headers.push(d.toString());
-            headers.push("Có mặt", "Vắng", "Trễ", "Tỷ lệ %");
+            document.getElementById('sync-status').innerText = "☁️ Đã đồng bộ trực tuyến";
+            document.getElementById('sync-status').classList.replace('text-slate-400', 'text-emerald-500');
+            
+            renderAll();
+        });
 
-            // 2. Tạo Data
-            let excelData = [headers];
-
-            students.forEach(st => {
-                let row = [st.name];
-                let countP = 0, countA = 0, countL = 0, scheduled = 0;
-
-                for (let d = 1; d <= daysInMonth; d++) {
-                    const isWork = checkIsWorkDay(new Date(y, m - 1, d), scheduleType);
-                    const status = attendance[`${st.id}_${y}-${m}-${d}`] || "";
-                    
-                    if (isWork) {
-                        scheduled++;
-                        row.push(status); // Chỉ đẩy giá trị nếu có lịch
-                        if (status === "✅") countP++;
-                        if (status === "❌") countA++;
-                        if (status === "⏰") countL++;
-                    } else {
-                        row.push(""); // Ngày nghỉ lịch thì để trống
-                    }
-                }
-
-                const rate = scheduled ? Math.round(((countP + countL) / scheduled) * 100) : 0;
-                row.push(countP, countA, countL, rate + "%");
-                excelData.push(row);
-            });
-
-            // 3. Xuất file
-            const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "DiemDanh");
-            XLSX.writeFile(workbook, `Diem_Danh_Thang_${m}_${y}.xlsx`);
+        // --- 3. CÁC HÀM XỬ LÝ DỮ LIỆU ---
+        function saveAtt(sid, date, val) {
+            document.getElementById('sync-status').innerText = "⚡ Đang lưu...";
+            db.ref('attendance/' + `${sid}_${date}`).set(val);
         }
 
         function addStudent() {
             const name = document.getElementById('new-student-name').value;
             if (!name) return;
-            students.push({ id: Date.now(), name: name });
-            localStorage.setItem('students', JSON.stringify(students));
+            const newStudents = [...students, { id: Date.now(), name: name }];
+            db.ref('students').set(newStudents);
             document.getElementById('new-student-name').value = '';
-            renderAll();
         }
 
         function deleteStudent(id) {
-            if (confirm('Xóa học sinh này?')) {
-                students = students.filter(s => s.id !== id);
-                localStorage.setItem('students', JSON.stringify(students));
-                renderAll();
+            if (confirm('Xác nhận xóa học sinh này và toàn bộ dữ liệu liên quan?')) {
+                const newStudents = students.filter(s => s.id !== id);
+                db.ref('students').set(newStudents);
             }
         }
 
-        function renderStudentManagement() {
+        function updateSettings() {
+            const val = document.getElementById('schedule-select').value;
+            db.ref('scheduleType').set(val);
+        }
+
+        // --- 4. HÀM HIỂN THỊ (RENDER) ---
+        function checkIsWorkDay(date, type) {
+            const d = date.getDay();
+            if (type === '2-4-6') return [1, 3, 5].includes(d);
+            if (type === '3-5-7') return [2, 4, 6].includes(d);
+            return d !== 0; // all week
+        }
+
+        function renderAll() {
+            renderAttendanceTable();
+            renderStudentList();
+        }
+
+        function renderAttendanceTable() {
+            const [y, m] = document.getElementById('month-filter').value.split('-');
+            if (!y) return;
+            const daysInMonth = new Date(y, m, 0).getDate();
+            const header = document.getElementById('table-header');
+            const body = document.getElementById('attendance-body');
+
+            // Header
+            header.innerHTML = `<th class="p-4 text-[10px] font-bold text-slate-400 sticky-col bg-slate-50 min-w-[140px]">HỌC SINH</th>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const isWork = checkIsWorkDay(new Date(y, m - 1, d), scheduleType);
+                header.innerHTML += `<th class="p-2 text-center min-w-[45px]">
+                    <div class="text-[10px] font-bold ${isWork ? 'text-slate-600' : 'text-slate-200'}">${d}</div>
+                </th>`;
+            }
+
+            // Body
+            body.innerHTML = '';
+            students.forEach(st => {
+                let row = `<tr><td class="p-4 text-sm font-bold text-slate-700 sticky-col bg-white border-r">${st.name}</td>`;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const key = `${st.id}_${y}-${m}-${d}`;
+                    const status = attendance[key] || '';
+                    const isWork = checkIsWorkDay(new Date(y, m - 1, d), scheduleType);
+                    
+                    row += `<td class="p-1 text-center ${isWork ? '' : 'bg-slate-50/30'}">
+                        ${isWork ? `
+                        <select onchange="saveAtt('${st.id}', '${y}-${m}-${d}', this.value)" 
+                            class="w-9 h-9 text-xs rounded-xl text-center font-bold transition-all
+                            ${status === '✅' ? 'pastel-green' : status === '❌' ? 'pastel-red' : status === '⏰' ? 'pastel-yellow' : 'bg-slate-50 text-slate-300'}">
+                            <option value="">-</option>
+                            <option value="✅" ${status === '✅' ? 'selected' : ''}>✅</option>
+                            <option value="❌" ${status === '❌' ? 'selected' : ''}>❌</option>
+                            <option value="⏰" ${status === '⏰' ? 'selected' : ''}>⏰</option>
+                        </select>` : ''}
+                    </td>`;
+                }
+                body.innerHTML += row + `</tr>`;
+            });
+        }
+
+        function renderStudentList() {
             document.getElementById('student-list').innerHTML = students.map(s => `
-                <div class="flex justify-between items-center p-4 glass rounded-2xl group">
-                    <span class="text-sm font-semibold text-slate-700">${s.name}</span>
-                    <button onclick="deleteStudent(${s.id})" class="p-2 text-red-400 text-xs font-bold">Xóa</button>
+                <div class="flex justify-between items-center p-4 glass rounded-2xl">
+                    <span class="text-sm font-semibold">${s.name}</span>
+                    <button onclick="deleteStudent(${s.id})" class="text-red-400 text-xs font-bold">Xóa</button>
                 </div>
             `).join('');
         }
 
-        function showSummary() {
+        function exportToExcel() {
             const [y, m] = document.getElementById('month-filter').value.split('-');
-            const days = new Date(y, m, 0).getDate();
-            const body = document.getElementById('summary-table-body');
-            body.innerHTML = '';
-            let scheduled = 0;
-            for (let d = 1; d <= days; d++) if (checkIsWorkDay(new Date(y, m - 1, d), scheduleType)) scheduled++;
+            const daysInMonth = new Date(y, m, 0).getDate();
+            let headers = ["Học sinh"];
+            for (let d = 1; d <= daysInMonth; d++) headers.push(d.toString());
+            headers.push("Có mặt", "Vắng", "Trễ");
 
+            let data = [headers];
             students.forEach(st => {
-                let present = 0, absent = 0;
-                for (let d = 1; d <= days; d++) {
-                    const s = attendance[`${st.id}_${y}-${m}-${d}`];
-                    if (s === '✅' || s === '⏰') present++;
-                    if (s === '❌') absent++;
+                let row = [st.name];
+                let cP = 0, cA = 0, cL = 0;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const status = attendance[`${st.id}_${y}-${m}-${d}`] || "";
+                    row.push(status);
+                    if(status === "✅") cP++;
+                    if(status === "❌") cA++;
+                    if(status === "⏰") cL++;
                 }
-                body.innerHTML += `<tr class="text-center"><td class="py-4 text-left font-bold">${st.name}</td><td>${scheduled}</td><td class="font-bold text-green-500">${present}</td><td class="font-bold text-red-400">${absent}</td></tr>`;
+                row.push(cP, cA, cL);
+                data.push(row);
             });
-            document.getElementById('summary-modal').classList.remove('hidden');
+
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "DiemDanh");
+            XLSX.writeFile(wb, `Diem_Danh_Thang_${m}.xlsx`);
         }
 
-        function closeSummary() { document.getElementById('summary-modal').classList.add('hidden'); }
-
-        function updateStats() {
-            document.getElementById('stat-total-students').innerText = students.length;
-            const [y, m] = document.getElementById('month-filter').value.split('-');
-            let sessions = 0;
-            for(let d=1; d<=new Date(y, m, 0).getDate(); d++) if(checkIsWorkDay(new Date(y, m-1, d), scheduleType)) sessions++;
-            document.getElementById('stat-total-sessions').innerText = sessions;
-        }
-
-        function updateSettings() {
-            scheduleType = document.getElementById('schedule-select').value;
-            localStorage.setItem('scheduleType', scheduleType);
-            renderAll();
-        }
-
-        function clearData() {
-            if(confirm("Xóa sạch toàn bộ dữ liệu?")) { localStorage.clear(); location.reload(); }
-        }
-
-        init();
+        // Khởi tạo ngày tháng
+        const now = new Date();
+        document.getElementById('month-filter').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        document.getElementById('schedule-select').value = scheduleType;
     </script>
 </body>
-  </html>
-
+</html>
