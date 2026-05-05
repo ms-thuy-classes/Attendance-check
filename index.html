@@ -942,6 +942,23 @@
             document.getElementById('schedule-select').value = scheduleType;
             renderAll();
         });
+document.addEventListener('DOMContentLoaded', () => {
+    const modalBody = document.getElementById('modal-body');
+    if (modalBody) {
+        modalBody.addEventListener('scroll', function() {
+            const header = document.querySelector('.modal-summary-header');
+            if (header) {
+                if (this.scrollTop > 50) {
+                    header.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
+                    header.style.background = 'rgba(255,255,255,0.95)';
+                } else {
+                    header.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
+                    header.style.background = 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
+                }
+            }
+        });
+    }
+});
     </script>
 </body>
 </html>
